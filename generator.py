@@ -8,7 +8,8 @@ import json
 
 
 class ShapeGenerator:
-    def __init__(self, image_size=256):
+    def __init__(self, output_dir, image_size=256):
+        self.output_dir = output_dir
         self.image_size = image_size
         self.shapes = ["circle", "triangle", "rhombus", "hexagon"]
         self.image = Image.new("RGB", (image_size, image_size),
@@ -32,7 +33,7 @@ class ShapeGenerator:
     def _generate_non_overlapping_position(self, size):
         x = random.randint(int(size * 0.5), self.image_size - int(size * 0.5))
         y = random.randint(int(size * 0.5), self.image_size - int(size * 0.5))
-        #print(x, y, size)
+        # print(x, y, size)
         return x, y
 
     def _generate_non_overlapping_polygon(self, shape_type, size, x, y,
@@ -83,8 +84,9 @@ class ShapeGenerator:
         return rotated_polygon
 
     def _is_polygon_vacant(self, polygon):
+        expanded_polygon = polygon.buffer(1)  # Добавляем 1 пиксель к периметру фигуры
         for occupied_polygon in self.occupied_polygons:
-            if polygon.intersects(occupied_polygon):
+            if expanded_polygon.intersects(occupied_polygon):
                 return False
         return True
 
@@ -130,6 +132,7 @@ class ShapeGenerator:
             if shape_data_w < 25 or shape_data_w > 150 or shape_data_h < 25 or shape_data_h > 150:
                 # Размеры не соответствуют требованиям, перегенерируем фигуру
                 isSucces = False
+
             else:
                 isSucces = True
 
@@ -148,24 +151,54 @@ class ShapeGenerator:
             else:
                 isSucces = False
 
-    def generate_image(self):
-        count = random.randint(1, 5)
-        #print(count)
-        for _ in range(count):  # Генерируем две фигуры
+
+    def generate_image(self, image_index):
+        possible_counts = [1, 2, 3, 4, 5]  # Возможные количества фигур
+        count = random.choice(possible_counts)  # Случайно выбираем одно из них
+        print(count)
+        for _ in range(count):
             self._generate_shape()
 
-        return self.image, self.shape_data
+        image_filename = os.path.join(self.output_dir,
+                                      f"{image_index:03d}.png")
+        json_filename = os.path.join(self.output_dir,
+                                     f"{image_index:03d}.json")
+
+        # Сохраняем изображение
+        self.image.save(image_filename)
+
+        # Создаем список для JSON-данных
+        json_data = []
+        for idx, shape in enumerate(self.shape_data, start=1):
+            json_shape = {
+                "id": str(idx),
+                "name": shape["name"],
+                "region": {
+                    "origin": {"x": shape["x"], "y": shape["y"]},
+                    "size": {"width": shape["w"], "height": shape["h"]}
+                }
+            }
+            json_data.append(json_shape)
+
+        # Сохраняем JSON-данные
+        with open(json_filename, "w") as json_file:
+            json.dump(json_data, json_file, indent=4)
+
+        # print(f"Generated image: {image_filename}")
+        # print(f"Generated JSON: {json_filename}")
 
 
-# Создаем экземпляр класса ShapeGenerator
-generator = ShapeGenerator()
+# Путь к директории, в которой нужно сохранить изображения и JSON-файлы
+output_directory = "examples"
+if not os.path.exists(output_directory):
+    os.makedirs(output_directory)
 
-# Генерируем изображение с фигурами и получаем данные о фигурах
-generated_image, shape_data = generator.generate_image()
+# Генерируем 100 пар изображений и JSON-файлов
+for i in range(1, 101):
+    # Создаем экземпляр класса ShapeGenerator
+    generator = ShapeGenerator(output_directory)
+    # Генерируем изображение с фигурами и получаем данные о фигурах
+    generator.generate_image(i)
 
-# Сохраняем изображение
-generated_image.save("generated_image.png")
-
-# Выводим данные о фигурах
-for shape in shape_data:
-    print(shape)
+    # Выводим текущий номер генерации
+    print(f"Generated pair {i}/100")
